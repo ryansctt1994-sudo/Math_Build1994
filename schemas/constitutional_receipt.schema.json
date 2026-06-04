@@ -1,0 +1,100 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://cathedral.os/schemas/constitutional_receipt.schema.json",
+  "title": "Constitutional Receipt",
+  "description": "Minimal receipt envelope for Math_Build1994 verifiable artifacts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "receipt_type",
+    "profile",
+    "receipt_id",
+    "created_at",
+    "claim",
+    "evidence",
+    "provenance",
+    "verification",
+    "authority_effect"
+  ],
+  "properties": {
+    "receipt_type": {
+      "type": "string",
+      "const": "constitutional_receipt"
+    },
+    "profile": {
+      "type": "string",
+      "enum": [
+        "LEAN_THEOREM",
+        "LEAN_BUILD",
+        "REPLAY_BUILD",
+        "HOPF_RELATIONAL",
+        "ONTOLOGY_SNAPSHOT",
+        "WITNESS_LOG"
+      ]
+    },
+    "receipt_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "claim": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string" },
+        "command": { "type": "string" },
+        "result": { "type": "string" },
+        "artifact_paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["repository", "commit", "toolchain"],
+      "properties": {
+        "repository": { "type": "string" },
+        "commit": { "type": "string" },
+        "toolchain": { "type": "string" },
+        "mathlib_manifest_hash": { "type": "string" },
+        "issuer": { "type": "string" },
+        "signature": { "type": "string" }
+      }
+    },
+    "verification": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "status"],
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["manual", "github_actions", "local_replay", "external_audit"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["PASS", "FAIL", "PENDING"]
+        },
+        "workflow_run_url": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    },
+    "expiration": {
+      "type": ["string", "null"],
+      "description": "Null means durable mathematical receipt; non-null must be an ISO-8601 timestamp."
+    },
+    "authority_effect": {
+      "type": "string",
+      "enum": ["NO_DIRECT_AUTHORITY"]
+    }
+  }
+}
