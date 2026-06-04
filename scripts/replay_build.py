@@ -3,9 +3,10 @@
 
 Phase 3 minimal replay:
 - Reads a build receipt.
-- Checks out the recorded commit in the current repository.
+- Checks out the recorded commit in the current repository unless --no-checkout is used.
 - Runs the recorded build command.
 - Emits a replay result JSON.
+- Appends a replay matrix entry.
 
 This is same-environment replay. It does not yet provide Docker-pinned replay,
 cryptographic receipt signing, or signed trust-anchor validation.
@@ -51,6 +52,13 @@ def run_shell(command: str) -> tuple[int, str, str]:
     return p.returncode, p.stdout, p.stderr
 
 
+def run_text(command: str, default: str = "UNKNOWN") -> str:
+    code, out, err = run_shell(command)
+    if code != 0:
+        return default
+    return (out or err).strip() or default
+
+
 def current_commit() -> str:
     code, out, _ = run(["git", "rev-parse", "HEAD"])
     return out.strip() if code == 0 else "UNKNOWN"
@@ -65,16 +73,41 @@ def write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def file_sha256_plain(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def read_text(path: Path, default: str = "UNKNOWN") -> str:
+    try:
+        return path.read_text(encoding="utf-8").strip()
+    except Exception:
+        return default
+
+
 def environment_snapshot() -> dict[str, str]:
-    lean_code, lean_out, lean_err = run_shell("lake env lean --version")
-    lake_code, lake_out, lake_err = run_shell("lake --version")
+    toolchain = read_text(Path("lean-toolchain"))
+    lake_manifest_hash = file_sha256_plain(Path("lake-manifest.json"))
     return {
         "os": platform.platform(),
+        "uname": run_text("uname -a"),
         "python_version": platform.python_version(),
-        "lean_version": (lean_out or lean_err).strip() if lean_code == 0 else "UNKNOWN",
-        "lake_version": (lake_out or lake_err).strip() if lake_code == 0 else "UNKNOWN",
+        "lean_version": run_text("lake env lean --version"),
+        "lake_version": run_text("lake --version"),
+        "toolchain": toolchain,
+        "lake_manifest_hash": lake_manifest_hash or "UNKNOWN",
         "container_hash": os.environ.get("CONTAINER_HASH", "UNPINNED_SAME_ENVIRONMENT_REPLAY"),
     }
+
+
+def environment_hash(snapshot: dict[str, str]) -> str:
+    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def append_matrix(matrix_path: Path, replay_result: dict[str, Any]) -> None:
@@ -89,6 +122,10 @@ def append_matrix(matrix_path: Path, replay_result: dict[str, Any]) -> None:
         "original_receipt_hash": replay_result["original_receipt_hash"],
         "original_commit": replay_result["original_commit"],
         "replay_result": replay_result["replay_result"],
+        "receipt_environment_hash": replay_result["receipt_environment_hash"],
+        "current_environment_hash": replay_result["current_environment_hash"],
+        "environment_match": replay_result["environment_match"],
+        "environment_drift_status": replay_result["environment_drift_status"],
         "output_path": replay_result["output_path"],
     })
     write_json(matrix_path, matrix)
@@ -102,6 +139,7 @@ def replay(receipt_path: Path, output_dir: Path, matrix_path: Path, no_checkout:
     evidence = receipt.get("evidence", {})
     target_commit = provenance.get("commit")
     command = evidence.get("command", "lake build MathBuild")
+    receipt_env_hash = provenance.get("environment_hash", "UNKNOWN")
 
     starting_commit = current_commit()
     checkout_status = "SKIPPED" if no_checkout else "PENDING"
@@ -115,6 +153,16 @@ def replay(receipt_path: Path, output_dir: Path, matrix_path: Path, no_checkout:
             checkout_status = "PASS" if code == 0 else "FAIL"
             checkout_stderr = err[-4000:]
 
+    current_env = environment_snapshot()
+    current_env_hash = environment_hash(current_env)
+    environment_match = receipt_env_hash != "UNKNOWN" and receipt_env_hash == current_env_hash
+    if receipt_env_hash == "UNKNOWN":
+        drift_status = "RECEIPT_ENVIRONMENT_HASH_MISSING"
+    elif environment_match:
+        drift_status = "ENVIRONMENT_MATCH"
+    else:
+        drift_status = "ENVIRONMENT_DRIFT_DETECTED"
+
     code, stdout, stderr = run_shell(command)
     result = "SUCCESS" if code == 0 else "FAILURE"
 
@@ -122,7 +170,7 @@ def replay(receipt_path: Path, output_dir: Path, matrix_path: Path, no_checkout:
     output_path = output_dir / f"replay_result_{replay_id}.json"
 
     replay_result = {
-        "schema_version": "build-replay-result/0.1",
+        "schema_version": "build-replay-result/0.2",
         "replay_id": replay_id,
         "replay_result": result,
         "replay_timestamp": utc_now(),
@@ -136,7 +184,11 @@ def replay(receipt_path: Path, output_dir: Path, matrix_path: Path, no_checkout:
         "exit_code": code,
         "stdout_tail": stdout[-4000:],
         "stderr_tail": stderr[-4000:],
-        "environment": environment_snapshot(),
+        "environment": current_env,
+        "receipt_environment_hash": receipt_env_hash,
+        "current_environment_hash": current_env_hash,
+        "environment_match": environment_match,
+        "environment_drift_status": drift_status,
         "diff": "" if result == "SUCCESS" else "Build command returned non-zero exit status.",
         "limitations": [
             "same-environment replay only",
@@ -164,6 +216,8 @@ def main() -> int:
         "replay_result": result["replay_result"],
         "output_path": result["output_path"],
         "original_receipt_hash": result["original_receipt_hash"],
+        "environment_match": result["environment_match"],
+        "environment_drift_status": result["environment_drift_status"],
     }, indent=2))
     return 0 if result["replay_result"] == "SUCCESS" else 1
 
