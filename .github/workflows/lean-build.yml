@@ -15,8 +15,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Lean and build
+      - name: Set up Lean
         uses: leanprover/lean-action@v1
         with:
           use-github-cache: true
-          build-args: MathBuild
+          auto-config: false
+
+      - name: Update Lake dependencies
+        run: lake update
+
+      - name: Build MathBuild
+        run: lake build MathBuild
