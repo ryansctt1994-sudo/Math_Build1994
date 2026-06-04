@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import subprocess
 import uuid
 from datetime import datetime, timezone
@@ -51,11 +52,34 @@ def read_text(path: Path, default: str = "UNKNOWN") -> str:
         return default
 
 
+def environment_snapshot(toolchain: str, lake_manifest_hash: str | None) -> dict[str, str]:
+    lean_version = run_text(["bash", "-lc", "lake env lean --version"])
+    lake_version = run_text(["bash", "-lc", "lake --version"])
+    uname = run_text(["bash", "-lc", "uname -a"])
+    return {
+        "os": platform.platform(),
+        "uname": uname,
+        "python_version": platform.python_version(),
+        "lean_version": lean_version,
+        "lake_version": lake_version,
+        "toolchain": toolchain,
+        "lake_manifest_hash": lake_manifest_hash or "UNKNOWN",
+        "container_hash": os.environ.get("CONTAINER_HASH", "UNPINNED_SAME_ENVIRONMENT_REPLAY"),
+    }
+
+
+def environment_hash(snapshot: dict[str, str]) -> str:
+    canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"))
+    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def build_receipt(result: str, command: str, output_path: Path) -> dict[str, Any]:
     commit = os.environ.get("GITHUB_SHA") or run_text(["git", "rev-parse", "HEAD"])
     toolchain = read_text(Path(DEFAULT_TOOLCHAIN))
     lake_manifest_hash = file_sha256(Path("lake-manifest.json"))
     lakefile_hash = file_sha256(Path("lakefile.lean"))
+    env_snapshot = environment_snapshot(toolchain, lake_manifest_hash)
+    env_hash = environment_hash(env_snapshot)
 
     receipt = {
         "receipt_type": "constitutional_receipt",
@@ -76,6 +100,8 @@ def build_receipt(result: str, command: str, output_path: Path) -> dict[str, Any
             "toolchain": toolchain,
             "mathlib_manifest_hash": lake_manifest_hash or "UNKNOWN",
             "lakefile_hash": lakefile_hash or "UNKNOWN",
+            "environment": env_snapshot,
+            "environment_hash": env_hash,
             "issuer": os.environ.get("GITHUB_ACTOR", "local"),
             "signature": "UNSIGNED_REFERENCE_RECEIPT",
         },
@@ -102,7 +128,11 @@ def main() -> int:
     args = parser.parse_args()
 
     receipt = build_receipt(args.result, args.command, Path(args.output))
-    print(json.dumps({"receipt_id": receipt["receipt_id"], "output": args.output}, indent=2))
+    print(json.dumps({
+        "receipt_id": receipt["receipt_id"],
+        "output": args.output,
+        "environment_hash": receipt["provenance"]["environment_hash"],
+    }, indent=2))
     return 0
 
 
