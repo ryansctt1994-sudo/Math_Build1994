@@ -21,6 +21,9 @@ jobs:
           use-github-cache: true
           auto-config: false
 
+      - name: Repository self-check
+        run: python scripts/check_repo.py
+
       - name: Update Lake dependencies
         run: lake update
 
