@@ -1,0 +1,10 @@
+{
+  "schema_version": "trusted-keys/0.1",
+  "status": "PLACEHOLDER_REGISTRY_NO_TRUST_ROOTS",
+  "keys": [],
+  "notes": [
+    "No cryptographic custody is active yet.",
+    "Add public signing keys only after replay-governed receipts exist and signing policy is defined.",
+    "Unsigned reference receipts remain valid as evidence but not as cryptographically governed artifacts."
+  ]
+}
