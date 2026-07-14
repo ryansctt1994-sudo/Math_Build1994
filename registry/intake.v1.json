@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0.0",
+  "authority": "NONE",
+  "selected_intake": [
+    {
+      "repository": "AutoProof",
+      "scope": "human-in-the-loop proof review interface",
+      "status": "review_required"
+    },
+    {
+      "repository": "LogOS",
+      "scope": "formal and verification assets",
+      "status": "dependency_and_placeholder_audit_required"
+    },
+    {
+      "repository": "t81-benchmarks",
+      "scope": "benchmark definitions, vectors, harnesses, and receipts",
+      "status": "source_pin_required"
+    },
+    {
+      "repository": "t81-hardware",
+      "scope": "RTL and testbenches",
+      "status": "simulation_only_until_physical_evidence"
+    },
+    {
+      "repository": "t81lib",
+      "scope": "validated reusable library components",
+      "status": "license_and_test_review_required"
+    },
+    {
+      "repository": "ternary",
+      "scope": "ternary computing core",
+      "status": "falsifiability_and_test_review_required"
+    },
+    {
+      "repository": "ternary-tools",
+      "scope": "reproducible tools and vectors",
+      "status": "source_pin_required"
+    },
+    {
+      "repository": "trinity-pow",
+      "scope": "bounded experimental proof-of-work research",
+      "status": "research_only"
+    }
+  ],
+  "candidate_intake": [
+    "duotronic-computing",
+    "trinity"
+  ],
+  "reference_only": [
+    "t81-foundation",
+    "t81-docs",
+    "t81-roadmap"
+  ],
+  "claim_modalities": [
+    "FORMAL_SOURCE_PRESENT",
+    "FORMAL_BUILD_PASSED",
+    "MODEL_CHECK_PASSED",
+    "FINITE_EXHAUSTIVE_CHECK_PASSED",
+    "PROPERTY_TEST_PASSED",
+    "NUMERICAL_EXPERIMENT_OBSERVED",
+    "RTL_SIMULATION_PASSED",
+    "HARDWARE_MEASURED",
+    "FAILED",
+    "UNVERIFIED"
+  ],
+  "required_before_promotion": [
+    "immutable_source_pin",
+    "license_review",
+    "file_digest",
+    "toolchain_lock",
+    "exact_command",
+    "stdout_stderr_exit_code",
+    "assumption_and_tcb_inventory",
+    "placeholder_and_admission_audit",
+    "negative_or_mutation_test",
+    "artifact_hashes",
+    "explicit_non_claims",
+    "independent_reproduction_status"
+  ]
+}
