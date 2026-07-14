@@ -3,8 +3,18 @@ name: Lean Build
 on:
   push:
     branches: [main]
+    paths:
+      - "MathBuild/**"
+      - "lakefile.lean"
+      - "lean-toolchain"
+      - "scripts/check_repo.py"
   pull_request:
     branches: [main]
+    paths:
+      - "MathBuild/**"
+      - "lakefile.lean"
+      - "lean-toolchain"
+      - "scripts/check_repo.py"
 
 jobs:
   build:
