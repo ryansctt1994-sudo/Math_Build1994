@@ -146,7 +146,9 @@ def replay(receipt_path: Path, output_dir: Path, matrix_path: Path, no_checkout:
     checkout_stderr = ""
 
     if not no_checkout:
-        if not target_commit or target_commit == "UNKNOWN":
+        if not isinstance(target_commit, str) or len(target_commit) != 40 or any(
+            char not in "0123456789abcdef" for char in target_commit
+        ):
             checkout_status = "FAILED_NO_TARGET_COMMIT"
         else:
             code, _, err = run(["git", "checkout", target_commit])
@@ -163,7 +165,25 @@ def replay(receipt_path: Path, output_dir: Path, matrix_path: Path, no_checkout:
     else:
         drift_status = "ENVIRONMENT_DRIFT_DETECTED"
 
-    code, stdout, stderr = run_shell(command)
+    # A receipt is untrusted input, not a shell program or checkout authority.
+    refusal = None
+    if command != "lake build MathBuild":
+        refusal = "UNSUPPORTED_BUILD_COMMAND"
+    elif not isinstance(target_commit, str) or len(target_commit) != 40 or any(
+        char not in "0123456789abcdef" for char in target_commit
+    ):
+        refusal = "INVALID_TARGET_COMMIT"
+    elif checkout_status not in {"PASS", "SKIPPED"}:
+        refusal = "CHECKOUT_FAILED"
+    elif current_commit() != target_commit:
+        refusal = "SOURCE_COMMIT_MISMATCH"
+    elif not environment_match:
+        refusal = drift_status
+
+    if refusal is not None:
+        code, stdout, stderr = -1, "", refusal
+    else:
+        code, stdout, stderr = run(["lake", "build", "MathBuild"])
     result = "SUCCESS" if code == 0 else "FAILURE"
 
     replay_id = str(uuid.uuid4())
@@ -182,6 +202,7 @@ def replay(receipt_path: Path, output_dir: Path, matrix_path: Path, no_checkout:
         "checkout_stderr_tail": checkout_stderr,
         "command": command,
         "exit_code": code,
+        "refusal_reason": refusal,
         "stdout_tail": stdout[-4000:],
         "stderr_tail": stderr[-4000:],
         "environment": current_env,
