@@ -1,0 +1,66 @@
+name: AP-MATH-001 Pinned Lean Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/ap_math_smoke.py"
+      - ".github/workflows/ap-math-smoke.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  trusted-fixture:
+    name: Fixed proof, pinned MathBuild worktree (NO promotion)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout pinned MathBuild candidate
+        uses: actions/checkout@v4
+        with:
+          path: mathbuild
+          persist-credentials: false
+
+      - name: Checkout exact AutoProof handoff candidate
+        uses: actions/checkout@v4
+        with:
+          repository: ryansctt1994-sudo/AutoProof
+          ref: 5f60bcee05c13c27923bf35bbc333b426ca91549
+          path: autoproof
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up pinned Lean via Elan
+        run: |
+          curl -fsSLo elan-init.sh \
+            https://raw.githubusercontent.com/leanprover/elan/0e36a07b9bbcc5381fa6250df109f9a4f94d7bac/elan-init.sh
+          sh elan-init.sh -y --default-toolchain none
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install AutoProof test runtime
+        run: python -m pip install -r autoproof/backend/requirements-dev.txt
+
+      - name: Resolve MathBuild Lake and Mathlib cache
+        working-directory: mathbuild
+        run: |
+          lake update
+          lake exe cache get
+
+      - name: Run fixed proof through AutoProof and temporary MathBuild root
+        working-directory: mathbuild
+        env:
+          AP_MATH_TRUSTED_FIXTURE: "1"
+          AUTOPROOF_CHECKOUT: ${{ github.workspace }}/autoproof
+          AUTOPROOF_COMMIT_EXPECTED: "5f60bcee05c13c27923bf35bbc333b426ca91549"
+        run: python scripts/ap_math_smoke.py
+
+      - name: Preserve experimental smoke record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ap-math-experiment-${{ github.run_id }}
+          if-no-files-found: warn
+          path: mathbuild/artifacts/ap_math_smoke.json
