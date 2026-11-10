@@ -100,7 +100,7 @@ def main() -> int:
             raise RuntimeError("Smoke file already exists; refusing to overwrite canonical source.")
         try:
             module_file.write_text("import Mathlib\n\n" + source, encoding="utf-8")
-            root_file.write_bytes(original_root + b"\nimport MathBuild.APMathSmoke\n")
+            root_file.write_bytes(b"import MathBuild.APMathSmoke\n" + original_root)
             build_output = run(["lake", "build", "MathBuild"], timeout=300)
         finally:
             root_file.write_bytes(original_root)
