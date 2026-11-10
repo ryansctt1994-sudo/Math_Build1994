@@ -1,0 +1,28 @@
+name: AutoProof Candidate Identity
+
+on:
+  push:
+    paths:
+      - "scripts/inspect_autoproof_candidate.py"
+      - "tests/test_autoproof_candidate.py"
+      - ".github/workflows/ap-candidate-identity.yml"
+  pull_request:
+    paths:
+      - "scripts/inspect_autoproof_candidate.py"
+      - "tests/test_autoproof_candidate.py"
+      - ".github/workflows/ap-candidate-identity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  structural-inspection:
+    name: Fail-closed candidate inspection tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run candidate binding and negative tests
+        run: python -m unittest discover -s tests -p "test_autoproof_candidate.py" -v
